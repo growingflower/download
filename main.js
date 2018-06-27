@@ -2,6 +2,10 @@ const {app, BrowserWindow,ipcMain,shell,dialog,Menu} = require('electron');
 const _ = require('lodash');
 const path = require('path');
 const LokiDB = require('lokijs');
+const fs = require('fs');
+const util = require('util');
+const access = util.promisify(fs.access);
+
 
 class Download {
     constructor(){
@@ -9,6 +13,7 @@ class Download {
         this.itemsCollection;
         this.db;
         this.ipcMainListenerArray = [];
+        this.initAppListener();
     }
 
     removeIpcMainListeners(ipcMainListenerArray){
@@ -32,15 +37,15 @@ class Download {
             show:false
         };
         this.mainWindow = new BrowserWindow(windowOpts);
-        let url = path.join('file://', __dirname, '/clientDownloadnew/index.html');
+        let url = path.join('file://', __dirname, '/index.html');
         this.mainWindow.loadURL(url);
         this.mainWindow.on('closed',() => {
             this.removeIpcMainListeners(this.ipcMainListenerArray)
             this.mainWindow = null;
         });
-        this.initReceiveInfo(this.mainWindow);
+        this.initReceiveListener(this.mainWindow);
         if(!isActive){
-            this.listenToDownload(this.mainWindow);
+            this.registerDownloadListener(this.mainWindow);
         }
         this.mainWindow.once('ready-to-show', () => {
             let allDownloadItemsInfos = this.itemsCollection.find({})
@@ -81,6 +86,10 @@ class Download {
     }
 
     initReceiveListener(){
+        this.mainWindow.webContents.on('dom-ready',()=>{
+            let allDownloadItemsInfos = this.itemsCollection.find({})
+            this.mainWindow.webContents.send('initAlldownloaditems',allDownloadItemsInfos)
+          })
         //删除下载页面的数据
         ipcMain.on('removedowanload',(event,id)=>{
           this.itemsCollection.chain().find({itemid:id}).remove();
@@ -133,23 +142,24 @@ class Download {
         this.mainWindow.webContents.session.createInterruptedDownload(options)
     }
 
-    registerDownloadListener (){
-        this.mainWindow.webContents.on('will-download',(event, item, webContents)=>{
-            this.checkDownloadURLexist(event, item, webContents);
-            let savePath = this.checkFileName(event, item, webContents);
+     registerDownloadListener (){
+        this.mainWindow.webContents.session.on('will-download', (event, item, webContents)=>{
+            console.log(item.getTotalBytes())
+            this.checkDownloadURLexist(item);
+            let savePath =  this.checkFileName(item);
             //断点下载的item初始状态为interrupted
             if(item.getState() === 'interrupted'){
                 let reloadflag = true;
-                goOnInterruptedDownload(event, item, webContents,savePath,reloadflag)
+               this.goOnInterruptedDownload(event, item, webContents,savePath,reloadflag)
             }else{
-                let reloadflag = flase;
-                firstDownload(event, item, webContents,savePath,reloadflag)
+                let reloadflag = false;
+                this.firstDownload(event, item, webContents,savePath,reloadflag)
             }
 
         })
     }
 
-    checkDownloadURLexist(event, item, webContents){
+    checkDownloadURLexist(item){
         if(item.getTotalBytes() === 0 ){
             let opts = {type:'warning',message:"wrong downloadUrl"}
             dialog.showMessageBox(win,opts)
@@ -160,28 +170,37 @@ class Download {
        
     }
 
-    checkFileName(event, item, webContents){
+     checkFileName(item,count = 0){
         //检查dowload文件夹中是否存在
-        let savePath = app.getPath('downloads')+ '/' + item.getFilename()
-        return savePath
+        try{
+            let savePath = `${app.getPath('downloads')}/${item.getFilename()}`
+            fs.accessSync(savePath, fs.constants.F_OK)
+            savePath = `${app.getPath('downloads')}/${item.getFilename()}(${count})`
+            return checkFileName(item,++count)
+        }catch(err){
+            let savePath = app.getPath('downloads')+ '/' + item.getFilename()
+            return savePath
+        }
+        
     }
 
     goOnInterruptedDownload(event, item, webContents,savePath,reloadflag){
         let itemId = item.getStartTime()*1000000;//开始时间作为下载项目唯一主键
         let downloadItemInfos = this.itemsCollection.find({itemid:start})[0];//从数据库中拿需要断点继续下载的item
-        let hasDownloadedBytes = downloadItemInfos.offet; //获取断点时已下载点字节数
+        let offset = downloadItemInfos.offet; //获取断点时已下载点字节数
         let startInterrupteTime = new Date().getTime()/1000 //获取继续断点下载的开始时间
         let isReload = true;
         let argsForWin = this.getDowanloadInfos(item);
         argsForWin.isReload = isReload;
         item.resume();//恢复断点下载
+        console.log(savePath)
         item.setSavePath(savePath)
         this.mainWindow.webContents.send('isDownloading',argsForWin)
         let argsforDownload = {
             item:item,
             itemId:itemId,
             startInterrupteTime:startInterrupteTime,
-            hasDownloadedBytes:hasDownloadedBytes,
+            offset:offset,
             savePath:savePath,
             reloadflag:reloadflag
         }
@@ -193,7 +212,7 @@ class Download {
         let itemId = downloadItemInfos.startTime*1000000;
         let itemState = downloadItemInfos.state;
         //第一次下载的item存入数据库
-        let firstDownloadItem = this.itemsCollection({itemid:itemId,state:itemState,downloaditem:downloadItemInfos})
+        let firstDownloadItem = this.itemsCollection.insert({itemid:itemId,state:itemState,downloaditem:downloadItemInfos})
         item.setSavePath(savePath)
         this.db.save()
         let argsForWin = this.getDowanloadInfos(item);
@@ -208,9 +227,9 @@ class Download {
         this.listenToOneItem(argsforDownload)
     }
 
-    listenToOneItem ({item,itemId,firstDownloadItem='',startInterrupteTime='',hasDownloadedBytes='',savePath,reloadflag}) {
+    listenToOneItem ({item,itemId,firstDownloadItem='',startInterrupteTime='',offset='',savePath,reloadflag}) {
         this.addDownloadingItemEvent(item,itemId);
-        this.listenDownloadingItem({item,itemId,firstDownloadItem='',startInterrupteTime='',hasDownloadedBytes='',savePath,reloadflag})
+        this.listenDownloadingItem({item,itemId,firstDownloadItem,startInterrupteTime,offset,savePath,reloadflag})
     }
 
     addDownloadingItemEvent (item,itemId) {
@@ -247,66 +266,144 @@ class Download {
         });
     }
 
-    listenDownloadingItem({item,itemId,firstDownloadItem='',startInterrupteTime='',hasDownloadedBytes='',savePath,isReload}){
+    listenDownloadingItem({item,itemId,firstDownloadItem='',startInterrupteTime='',offet='',savePath,isReload}){
         item.on('done',(event,state)=>{
+            let argsForWin = this.getDowanloadInfos(item)
             if(state === 'completed'){
-                let argsForWin = this.getDowanloadInfos(item)
                 if(isReload){
                     this.interruptedDownloadItemOver(itemId,argsForWin)
                 }else{
-                    this.firstDownloadItemOver(itemId,argsForWin)
-                }
-            }else if(state === 'cancelled'){
-                if(isReload){
-
-                }else{
-
+                    this.firstDownloadItemOver(firstDownloadItem,argsForWin)
                 }
             }else{
                 if(isReload){
-
+                    this.interruptedDownloadItemCanceled(itemId,argsForWin)
                 }else{
-                    
+                    this.firstDownloadItemCanceled(firstDownloadItem,argsForWin)
                 }
             }
         })
         item.on('updated',(event,state)=>{
+            let downloadingItemInfos = this.getDowanloadInfos(item)
             if(state === 'interrupted'){
-
+                item.resume() // 断点下载开始
             }else if(state === 'progressing'){
                 if (item.isPaused()){
-
+                    if(isReload){
+                        this.interruptedDownloadItemPaused(itemId,downloadingItemInfos)
+                    }else{
+                        this.firstDownloadItemPaused(firstDownloadItem,downloadingItemInfos)
+                    }
                 }else{
-
+                    console.log(`Received bytes: ${item.getReceivedBytes()}`)
+                    if(isReload){
+                        this.interruptedDownloadItemProccessing(itemId,downloadingItemInfos,startInterrupteTime,offet)
+                    }else{
+                        this.firstDownloadItemProccessing(firstDownloadItem,downloadingItemInfos)
+                    }
                 }
             }else{
-
+                console.log('err')
             }
         })
     }
 
-    firstDownloadItemOver(itemId,argsForWin){
+    firstDownloadItemProccessing(firstDownloadItem,downloadingItemInfos){
+        firstDownloadItem.downloaditem = downloadingItemInfos;
+        let startTime = downloadingItemInfos.startTime;
+        let receivedBytes = downloadingItemInfos.receivedBytes;
+        let fileUrl = downloadingItemInfos.url;
+        let filename = downloadingItemInfos.filename;
+        let filesize = downloadingItemInfos.totalBytes;
+        let hasDownloadedBytes = 0;
+        hasDownloadedBytes += receivedBytes;
+        firstDownloadItem.downloaditem.offset = downloadingItemInfos.Etag != ""? hasDownloadedBytes : 0;
+        firstDownloadItem.state = 'isProgressing'
+        let speed = hasDownloadedBytes/(Number(new Date().getTime()/1000) - Number(startTime))
+        this.itemsCollection.update(firstDownloadItem)
+        this.db.save()
+        this.mainWindow.webContents.send('receivedBytes',receivedBytes,speed,hasDownloadedBytes,startTime,fileUrl,filename,filesize)
+    }
+
+    interruptedDownloadItemProccessing(itemId,downloadingItemInfos,startInterrupteTime,offet){
+        let startTime = downloadingItemInfos.startTime;
+        let filesize = downloadingItemInfos.totalBytes;
+        let filename = downloadingItemInfos.filename;
+        let fileUrl = downloadingItemInfos.url; 
+        let receivedBytes = downloadingItemInfos.receivedBytes;
+        let hasDownloadedBytes = offet;
+        let nowDowaload = 0;
+        nowDowaload += receivedBytes;
+        hasDownloadedBytes += receivedBytes;
+        downloadingItemInfos.offset = downloadingItemInfos.Etag != ""? hasDownloadedBytes : 0;
+        speed = nowDowaload/(Number(new Date().getTime()/1000) - Number(startInterrupteTime))
+        var update = function (obj){
+            obj.state = 'isProgressing';
+            obj.downloaditem = downloadingItemInfos 
+            return obj
+          }
+        this.itemsCollection.findAndUpdate({itemid:itemId},update)
+        this.db.save()
+        this.mainWindow.webContents.send('receivedBytes',receivedBytes,speed,hasDownloadedBytes,startTime,fileUrl,filename,filesize)
+    }
+
+    //把第一次下载暂停时的状态写入数据库
+    firstDownloadItemPaused(firstDownloadItem,downloadingItemInfos){
+        let hasDownloadedBytes = 0
+        hasDownloadedBytes += downloadingItemInfos.receivedBytes;
+        downloadingItemInfos.hasDownloadedBytes = hasDownloadedBytes;
+        firstDownloadItem.state = 'interrupted';
+        firstDownloadItem.downloaditem.offset = downloadingItemInfos.Etag != ""? hasDownloadedBytes : 0;
+        this.mainWindow.webContents.send('isPaused',downloadingItemInfos)
+        this.itemsCollection.update(firstDownloadItem)
+        this.db.save()
+    }
+    //把断点下载暂停时的状态写入数据库
+    interruptedDownloadItemPaused(itemId,downloadingItemInfos){
+        let receivedBytes = downloadingItemInfos.receivedBytes;
+        let hasDownloadedBytes = downloadingItemInfos.offset;
+        hasDownloadedBytes += receivedBytes;
+        downloadingItemInfos.offset = (saves.Etag != "" ? hasDownloadedBytes : 0);
+        var pasueupdate = function(obj){
+          obj.state = 'interrupted';
+          obj.downloaditem = downloadingItemInfos;
+          return obj
+        }
+        this.itemsCollection.findAndUpdate({itemid:itemId},pasueupdate)
+        this.db.save()
+    }
+
+    firstDownloadItemOver(firstDownloadItem,argsForWin){
+        firstDownloadItem.state = 'isCompleted';
+        this.itemsCollection.update(firstDownloadItem); //把数据库中的对应数据state改为isCompleted
+        this.db.save();
+        this.mainWindow.webContents.send('completed',argsForWin)//通知窗口完成
+    }
+
+    interruptedDownloadItemOver(itemId,argsForWin){
         var cancelupdate = function(obj){
-                obj.state = 'isCompleted';
-                return obj
-            }
+            obj.state = 'isCompleted';
+            return obj
+        }
         this.itemsCollection.findAndUpdate({itemid:itemId},cancelupdate); //把数据库中的对应数据state改为isCompleted
         this.db.save();
         this.mainWindow.webContents.send('completed',argsForWin)//通知窗口完成
     }
 
-    interruptedDownloadItemOver(argsForWin){
-        itembeginning.state = 'isCompleted';
-          this.itemsCollection.update(itembeginning); //把数据库中的对应数据state改为isCompleted
-          this.db.save();
-          webContents.send('completed',argsForWin)//通知窗口完成
+    firstDownloadItemCanceled(firstDownloadItem,argsForWin){
+        firstDownloadItem.state = 'isCancelled';
+        this.itemsCollection.update(firstDownloadItem) //把数据库中的对应数据state改为isCancelled
+        this.db.save()
+        webContents.send('cancelled',argsForWin) //通知窗口取消下载
     }
-
-    firstDownloadItemCanceled(){
-
-    }
-    interruptedDownloadItemCanceled(){
-
+    interruptedDownloadItemCanceled(itemId,argsForWin){
+        var cancelupdate = function(obj){
+            obj.state = 'isCancelled';
+            return obj
+        }
+        this.itemsCollection.findAndUpdate({itemid:itemid},cancelupdate) //把数据库中的对应数据state改为isCancelled
+        this.db.save()
+        this.mainWindow.webContents.send('cancelled',argsForWin)//通知窗口取消下载
     }
 
 
@@ -343,3 +440,5 @@ class Download {
       }
 
 }
+
+new Download()

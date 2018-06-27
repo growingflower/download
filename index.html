@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>下载中心</title>
+    <link rel="stylesheet" href="./assets/css/style.css">
+    <script>
+      window.nodeRequire = require;
+      delete window.require;
+      delete window.exports;
+      delete window.module;
+      var template = nodeRequire('art-template');
+    </script>
+    <!-- <script src="./js/template-web.js"></script> -->
+    <script src="./assets/js/jquery.min.js"></script>
+
+</head>
+<body>
+<div class="header">
+    <span class="title">下载中心</span>
+    <input class="demo-input" id="downloadUrl"  placeholder="downloadurl"></input>
+    <button id="downloadButton">download</button>
+</div>
+<div class="body">
+    <div class="con">
+        <div class="fileList">
+        </div>
+    </div>
+</div>
+<script id="item" type="text/html">
+    {{if !noparent}}
+    <div class="fileItem" id="{{id}}">
+        {{/if}}
+        <span class="data" data-item="{{$data}}"></span>
+        <div class="itemHead">
+            <span class="fileIcon {{name | classname}}"></span>
+        </div>
+        <div class="itemContent">
+            <p class="name {{status === 4 ? 'deleted' : ''}}">
+                <span class="cot">{{name}}</span>
+                {{if status === 4}}
+                <span class="statusText">已取消</span>
+                {{/if}}
+            </p>
+            <p class="link" title="{{url}}">
+                {{url}}
+            </p>
+            {{if status === 1 || status === 2|| status === 5}}
+            <div class="downloadingInfo">
+                <div class="info">
+                            <span class="speed">
+                                {{speed | humanfilesize}}/s
+                            </span>-
+                    <span class="downloaded">
+                                {{downloaded | humanfilesize}}
+                            </span>, 共
+                    <span class="total">
+                                {{total | humanfilesize}}
+                            </span>
+                    <span class="status">
+                                {{if status === 2|| status === 5}}
+                                    已暂停
+                                {{/if}}
+                            </span>
+                </div>
+                <div class="progress">
+                    <div class="progressBar" style="width: {{ downloaded / total * 100 + '%'}}">
+
+                    </div>
+                </div>
+            </div>
+            {{/if}}
+            <div class="btns">
+                {{if status === 0}}
+                <span class="retry">
+                        重试
+                    </span>
+                {{/if}}
+                {{if status === 1}}
+                <span class="pause">
+                        暂停
+                    </span>
+                <span class="continue" style = "display:none">
+                  继续
+                </span>
+                <span class="cancel ml10">
+                        取消
+                    </span>
+                {{/if}}
+                {{if status === 2|| status === 5}}
+                <span class="pause" style = "display:none">
+                  暂停
+                </span>
+                <span class="continue">
+                        继续
+                    </span>
+                <span class="cancel ml10">
+                        取消
+                    </span>
+                {{/if}}
+                {{if status === 3}}
+                <span class="openDir">
+                        打开所在文件夹
+                    </span>
+                {{/if}}
+                {{if status === 4}}
+                <span class="retry">
+                        重试
+                    </span>
+                {{/if}}
+            </div>
+        </div>
+        <span class="remove">✕</span>
+        {{if !noparent}}
+    </div>
+    {{/if}}
+</script>
+<script>
+  function humanFileSize (size, accuracy = 0, space = ' ', units = ['B', 'KB', 'MB', 'GB', 'TB']) {
+    if (!size) { return '0' + space + units[0]; }
+    const i = Math.floor(Math.log(size) / Math.log(1024));
+    return ((size / Math.pow(1024, i)).toFixed(accuracy) * 1) + space + units[i];
+  }
+
+  function GetExt (fileName) {
+    var t = fileName.split('.');
+    return t.length > 1 ? t[t.length - 1] : '';
+  }
+
+  function getClassNameByExt (filename) {
+    if (filename === false) {
+      return 'fileIcon-folder';
+    }
+    var ext = filename ? GetExt(filename).toLowerCase() : '';
+    var extType = null;
+    switch (ext && ext.toLowerCase()) {
+      case 'png':
+      case 'jpg':
+      case 'jpeg':
+      case 'gif':
+      case 'bmp':
+        extType = 'img';
+        break;
+      case 'xls':
+      case 'xlsx':
+        extType = 'excel';
+        break;
+      case 'doc':
+      case 'docx':
+      case 'dot':
+        extType = 'word';
+        break;
+      case 'ppt':
+      case 'pptx':
+      case 'pps':
+        extType = 'ppt';
+        break;
+      case 'mmap':
+      case 'xmind':
+      case 'cal':
+      case 'zip':
+      case 'rar':
+      case '7z':
+      case 'pdf':
+      case 'txt':
+      case 'ai':
+      case 'psd':
+      case 'vsd':
+        extType = ext.toLowerCase();
+        break;
+      default:
+        extType = 'doc';
+    }
+    return 'fileIcon-' + extType;
+  }
+
+  function bindEvent () {
+    // 删除按钮
+    $('.body .con').on('click', '.fileItem .remove', function (item) {
+      var id = $(this).parents('.fileItem').attr('id');
+      $(this).parents('.fileItem').remove();
+      console.log('删除 id.', id);
+    });
+
+    // 取消按钮
+    $('.body .con').on('click', '.fileItem .cancel', function (item) {
+      var value = $(this).parents('.fileItem').find('.data').data('item');
+      updateFile(value.id, Object.assign({}, value, {
+        status: STATUS.cancaled
+      }));
+      // ......
+      console.log('取消 id.', value.id, ' ' + value.name);
+    });
+
+    // 重试按钮
+    $('.body .con').on('click', '.fileItem .retry', function (e) {
+      var value = $(this).parents('.fileItem').find('.data').data('item');
+      updateFile(value.id, Object.assign({}, value, {
+        status: STATUS.progressing
+      }));
+    });
+
+    // 暂停按钮
+    // $('.body .con').on('click', '.fileItem .pause', function (e) {
+    //   var value = $(this).parents('.fileItem').find('.data').data('item');
+    //   updateFile(value.id, Object.assign({}, value, {
+    //     status: STATUS.paused
+    //   }));
+    // });
+
+    // 继续按钮
+    // $('.body .con').on('click', '.fileItem .continue', function (e) {
+    //   var value = $(this).parents('.fileItem').find('.data').data('item');
+    //   updateFile(value.id, Object.assign({}, value, {
+    //     status: STATUS.progressing
+    //   }));
+    // });
+
+    // 打开文件夹按钮
+    $('.body .con').on('click', '.fileItem .openDir', function (e) {
+      //var index = $(this).parents('.fileItem').data('index')
+      console.log($(this))
+      var name = $(this).parents('.fileItem').find('.data').data('item').name;
+
+    });
+
+    // 点击链接按钮
+    $('.body .con').on('click', '.link', function (e) {
+      var url = $(this).parents('.fileItem').find('.data').data('item').url;
+    });
+  }
+
+  function render (data) {
+    $('.body .con .fileList').html(data.map(function (v) {
+      return template.render($('#item').html(), v);
+    }));
+  }
+
+  function addFile (value) {
+    $('.body .con .fileList').prepend(template.render($('#item').html(), value));
+  }
+
+  function updateFile (id, value) {
+    if (!id) {
+      return;
+    }
+    var $ele = $('#' + id);
+    var itemValue = $ele.find('.data').data('item');
+    $ele.html(template.render($('#item').html(), Object.assign(itemValue, value, {
+      noparent: true
+    })));
+  }
+
+  template.defaults.imports.classname = function (value) {
+    return getClassNameByExt(value);
+  };
+  template.defaults.imports.humanfilesize = function (value) {
+    return humanFileSize(value);
+  };
+  template.defaults.imports.mathceil = function (value) {
+    return Math.ceil(value);
+  };
+  var data = [
+    // {
+    //   name: 'Swagger UI.htm',
+    //   url: 'http://develop.check.d.mingdao.net/swagger/#!/AttendanceGroupReport/addAttendanceGroupReport',
+    //   status: 3,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'achieve_success.png',
+    //   url: 'https://dn-mdmedia.qbox.me/c3e51f8d-f083-4e15-a768-d5ea944358c8/2017/6/25/921e6129-c1a6-3fcc-f0a5-91944d707153.png?attname=achieve_success.png',
+    //   status: 2,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: '考勤报表 (6) (1).xlsx',
+    //   url: 'http://www.njcgs.com/UploadFiles/file/201707/14997367138771147.xls',
+    //   status: 0,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'typora_latest.zip',
+    //   url: 'https://typora.io/download/typora_latest.zip?',
+    //   status: 1,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'Swagger UI.htm',
+    //   url: 'http://develop.check.d.mingdao.net/swagger/#!/AttendanceGroupReport/addAttendanceGroupReport',
+    //   status: 4,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'Swagger UI.htm',
+    //   url: 'http://develop.check.d.mingdao.net/swagger/#!/AttendanceGroupReport/addAttendanceGroupReport',
+    //   status: 3,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'achieve_success.png',
+    //   url: 'https://dn-mdmedia.qbox.me/c3e51f8d-f083-4e15-a768-d5ea944358c8/2017/6/25/921e6129-c1a6-3fcc-f0a5-91944d707153.png?attname=achieve_success.png',
+    //   status: 2,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: '考勤报表 (6) (1).xlsx',
+    //   url: 'http://www.njcgs.com/UploadFiles/file/201707/14997367138771147.xls',
+    //   status: 0,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'typora_latest.zip',
+    //   url: 'https://typora.io/download/typora_latest.zip?',
+    //   status: 1,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'Swagger UI.htm',
+    //   url: 'http://develop.check.d.mingdao.net/swagger/#!/AttendanceGroupReport/addAttendanceGroupReport',
+    //   status: 4,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'Swagger UI.htm',
+    //   url: 'http://develop.check.d.mingdao.net/swagger/#!/AttendanceGroupReport/addAttendanceGroupReport',
+    //   status: 3,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'achieve_success.png',
+    //   url: 'https://dn-mdmedia.qbox.me/c3e51f8d-f083-4e15-a768-d5ea944358c8/2017/6/25/921e6129-c1a6-3fcc-f0a5-91944d707153.png?attname=achieve_success.png',
+    //   status: 2,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: '考勤报表 (6) (1).xlsx',
+    //   url: 'http://www.njcgs.com/UploadFiles/file/201707/14997367138771147.xls',
+    //   status: 0,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'typora_latest.zip',
+    //   url: 'https://typora.io/download/typora_latest.zip?',
+    //   status: 1,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'Swagger UI.htm',
+    //   url: 'http://develop.check.d.mingdao.net/swagger/#!/AttendanceGroupReport/addAttendanceGroupReport',
+    //   status: 4,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'Swagger UI.htm',
+    //   url: 'http://develop.check.d.mingdao.net/swagger/#!/AttendanceGroupReport/addAttendanceGroupReport',
+    //   status: 3,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'achieve_success.png',
+    //   url: 'https://dn-mdmedia.qbox.me/c3e51f8d-f083-4e15-a768-d5ea944358c8/2017/6/25/921e6129-c1a6-3fcc-f0a5-91944d707153.png?attname=achieve_success.png',
+    //   status: 2,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: '考勤报表 (6) (1).xlsx',
+    //   url: 'http://www.njcgs.com/UploadFiles/file/201707/14997367138771147.xls',
+    //   status: 0,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'typora_latest.zip',
+    //   url: 'https://typora.io/download/typora_latest.zip?',
+    //   status: 1,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'Swagger UI.htm',
+    //   url: 'http://develop.check.d.mingdao.net/swagger/#!/AttendanceGroupReport/addAttendanceGroupReport',
+    //   status: 4,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'Swagger UI.htm',
+    //   url: 'http://develop.check.d.mingdao.net/swagger/#!/AttendanceGroupReport/addAttendanceGroupReport',
+    //   status: 3,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'achieve_success.png',
+    //   url: 'https://dn-mdmedia.qbox.me/c3e51f8d-f083-4e15-a768-d5ea944358c8/2017/6/25/921e6129-c1a6-3fcc-f0a5-91944d707153.png?attname=achieve_success.png',
+    //   status: 2,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: '考勤报表 (6) (1).xlsx',
+    //   url: 'http://www.njcgs.com/UploadFiles/file/201707/14997367138771147.xls',
+    //   status: 0,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'typora_latest.zip',
+    //   url: 'https://typora.io/download/typora_latest.zip?',
+    //   status: 1,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'Swagger UI.htm',
+    //   url: 'http://develop.check.d.mingdao.net/swagger/#!/AttendanceGroupReport/addAttendanceGroupReport',
+    //   status: 4,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'Swagger UI.htm',
+    //   url: 'http://develop.check.d.mingdao.net/swagger/#!/AttendanceGroupReport/addAttendanceGroupReport',
+    //   status: 3,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    // {
+    //   name: 'achieve_success.png',
+    //   url: 'https://dn-mdmedia.qbox.me/c3e51f8d-f083-4e15-a768-d5ea944358c8/2017/6/25/921e6129-c1a6-3fcc-f0a5-91944d707153.png?attname=achieve_success.png',
+    //   status: 2,
+    //   downloaded: 1000000,
+    //   total: 8000000,
+    //   speed: 1000
+    // },
+    {
+      name: '考勤报表 (6) (1).xlsx',
+      url: 'http://www.njcgs.com/UploadFiles/file/201707/14997367138771147.xls',
+      status: 0,
+      downloaded: 1000000,
+      total: 8000000,
+      speed: 1000
+    },
+    {
+      name: 'typora_latest.zip',
+      url: 'https://typora.io/download/typora_latest.zip?',
+      status: 1,
+      downloaded: 1000000,
+      total: 8000000,
+      speed: 1000
+    },
+    {
+      name: 'Swagger UI.htm',
+      url: 'http://develop.check.d.mingdao.net/swagger/#!/AttendanceGroupReport/addAttendanceGroupReport',
+      status: 4,
+      downloaded: 1000000,
+      total: 8000000,
+      speed: 1000
+    }
+  ].map(function (v) {
+    return Object.assign({}, v, {
+      id: Array.apply(null, new Array(5)).
+        map(a => Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1)).
+        join('-')
+    });
+  });
+
+  var STATUS = {
+    error: 0,
+    progressing: 1,
+    paused: 2,
+    completed: 3,
+    cancaled: 4,
+    interrupted: 5
+  };
+  // 绑定事件
+  // bindEvent();
+
+  // 渲染整个列表
+  render(data);
+
+  //   添加文件
+  // var fileValue = {
+  //   'name': '考勤报表 (6) (1) adddd.xlsx',
+  //   'url': 'http://www.njcgs.com/UploadFiles/file/201707/14997367138771147.xls',
+  //   'status': 4,
+  //   'downloaded': 1000000,
+  //   'total': 8000000,
+  //   'speed': 1000,
+  //   'id': Array.apply(null, new Array(5)).
+  //     map(a => Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1)).
+  //     join('-')
+  // };
+  // addFile(fileValue);
+
+  // setInterval(function () {
+  //   fileValue.downloaded = fileValue.downloaded + 400000 >= fileValue.total ? fileValue.total : fileValue.downloaded +
+  //     400000;
+
+  //   // 更新文件
+  //   updateFile(fileValue.id, Object.assign({}, fileValue, {
+  //     status: fileValue.downloaded === fileValue.total ? STATUS.completed : STATUS.progressing
+  //   }));
+
+  // }, 500);
+
+
+</script>
+<script>
+  nodeRequire('./renderProcess/download/download')
+</script>
+ <!-- <script src="../renderProcess/download/download.js"></script> -->
+</body>
+</html>
