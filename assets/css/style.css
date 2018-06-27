@@ -1,0 +1,207 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    background-color: #f1f1f1;
+    font-family: "Helvetica Neue", Helvetica, "Nimbus Sans L", Arial, "Liberation Sans", "Hiragino Sans GB", "Source Han Sans CN Normal", "Microsoft YaHei", "Wenquanyi Micro Hei", "WenQuanYi Zen Hei", "ST Heiti", SimHei, "WenQuanYi Zen Hei Sharp", sans-serif;
+}
+html * {
+    box-sizing: border-box;
+}
+.ml10 {
+    margin-left: 10px;
+}
+.hidden {
+    display: none;
+}
+.header {
+    position: fixed;
+    z-index: 99;
+    height: 46px;
+    width: 100%;
+    left: 0;
+    top: 0;
+    background-color: #0085E4;
+}
+.header .title {
+    font-size: 15px;
+    font-weight: 100;
+    line-height: 46px;
+    color: #fff;
+    margin-left: 20px;
+}
+.body {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 46px;
+    bottom: 0;
+}
+.body .con {
+    width: 800px;
+    margin: 0 auto;
+}
+
+.fileItem {
+    position: relative;
+    display: block;
+    padding: 10px;
+    padding-left: 100px;
+    margin: 20px;
+    min-height: 100px;
+    background-color: #fff;
+    border-radius: 3px;
+    box-shadow: 0 0 3px rgba(0, 0, 0, .1);
+}
+.fileItem .remove {
+    position: absolute;
+    cursor: pointer;
+    right: 8px;
+    top: 6px;
+    color: #999;
+    font-size: 14px;
+    user-select: none;
+}
+.fileItem .itemHead {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100px;
+    height: 100%;
+    text-align: center;
+    border-right: 1px solid #f1f1f1
+}
+
+.fileItem .itemHead .fileIcon {
+    position: relative;
+    top: 50%;
+    margin-top: -20px;
+    display: inline-block;
+    width: 35px;
+    height: 40px;
+    background: url('../images/doc.png') no-repeat;
+    background-size: cover !important;
+}
+
+.fileItem .itemHead .fileIcon.fileIcon-doc {
+    background: url('../images/doc.png') no-repeat;
+}
+.fileItem .itemHead .fileIcon.fileIcon-img {
+    background: url('../images/img.png') no-repeat;
+}
+.fileItem .itemHead .fileIcon.fileIcon-excel {
+    background: url('../images/excel.png') no-repeat;
+}
+.fileItem .itemHead .fileIcon.fileIcon-word {
+    background: url('../images/word.png') no-repeat;
+}
+.fileItem .itemHead .fileIcon.fileIcon-ppt {
+    background: url('../images/ppt.png') no-repeat;
+}
+.fileItem .itemHead .fileIcon.fileIcon-mmap {
+    background: url('../images/mmap.png') no-repeat;
+}
+.fileItem .itemHead .fileIcon.fileIcon-xmind {
+    background: url('../images/doc.xmind') no-repeat;
+}
+.fileItem .itemHead .fileIcon.fileIcon-cal {
+    background: url('../images/cal.png') no-repeat;
+}
+.fileItem .itemHead .fileIcon.fileIcon-zip {
+    background: url('../images/zip.png') no-repeat;
+}
+.fileItem .itemHead .fileIcon.fileIcon-rar {
+    background: url('../images/rar.png') no-repeat;
+}
+.fileItem .itemHead .fileIcon.fileIcon-7z {
+    background: url('../images/7z.png') no-repeat;
+}
+.fileItem .itemHead .fileIcon.fileIcon-pdf {
+    background: url('../images/pdf.png') no-repeat;
+}
+.fileItem .itemHead .fileIcon.fileIcon-txt {
+    background: url('../images/txt.png') no-repeat;
+}
+.fileItem .itemHead .fileIcon.fileIcon-ai {
+    background: url('../images/ai.png') no-repeat;
+}
+.fileItem .itemHead .fileIcon.fileIcon-psd {
+    background: url('../images/vsd.png') no-repeat;
+}
+.fileItem .itemHead .fileIcon.fileIcon-7z {
+    background: url('../images/vsd.png') no-repeat;
+}
+
+.fileItem .itemContent {
+    font-size: 14px;
+    padding: 0 10px;
+    color: #666;
+}
+
+.fileItem .itemContent p {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: top;
+}
+
+.fileItem .itemContent .name {
+}
+
+.fileItem .itemContent .name .statusText {
+    color: #aaa;
+    margin-left: 10px;
+}
+
+.fileItem .itemContent .name.deleted .cot {
+    text-decoration: line-through;
+}
+
+.fileItem .itemContent .link {
+    cursor: pointer;
+    margin-top: 5px;
+    color: #999;
+}
+
+.fileItem .itemContent .downloadingInfo {
+    font-size: 13px;
+    margin-top: 10px;
+}
+
+.fileItem .itemContent .downloadingInfo .progress {
+    margin: 10px 0 10px 0;
+    height: 5px;
+    width: 90%;
+    border-radius: 4px;
+    background-color: #ccc;
+}
+
+.fileItem .itemContent .downloadingInfo .progress .progressBar{
+    height: 5px;
+    width: 0%;
+    border-radius: 4px;
+    background-color: #0085E4;
+}
+
+.fileItem .itemContent .btns {
+    margin-top: 15px;
+    font-size: 13px;
+    color: #999;
+}
+
+.fileItem .itemContent .btns .cancel,
+.fileItem .itemContent .btns .retry {
+    user-select: none;
+    color: #999;
+    cursor: pointer;
+}
+
+.fileItem .itemContent .btns .openDir,
+.fileItem .itemContent .btns .continue,
+.fileItem .itemContent .btns .retry,
+.fileItem .itemContent .btns .pause {
+    user-select: none;
+    color: #0085E4;
+    cursor: pointer;
+}
