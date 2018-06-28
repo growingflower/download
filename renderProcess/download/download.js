@@ -8,7 +8,7 @@ class DownloadBlock {
     initBlock(){
         this.sendDownloadMS();
         this.listenDownloading();
-        this.reloadActiveDownloadItems();
+        // this.reloadActiveDownloadItems();
         this.initAlldownloaditems();
         this.receivedBytesevent();
         this.isPausedevent();
@@ -53,11 +53,11 @@ class DownloadBlock {
     }
 
     listenDownloading(){
-        ipcRenderer.on("isDownloading",(event, downloadItemInfos,reloadFlag)=>{
-            console.log(downloadItemInfos,"downloadItemInfos")
-            let {totalBytes,startTime,filename,url} = downloadItemInfos
+        ipcRenderer.on("isDownloading",(event, downloadItemInfos,isReload)=>{
+            let that = this
+            let {totalBytes,startTime,newName,url} = downloadItemInfos
             let fileValue = {
-                'name': filename,
+                'name': newName,
                 'url': url,
                 'status': 1,
                 'downloaded': 0,
@@ -65,30 +65,16 @@ class DownloadBlock {
                 'speed': 0,
                 'id':startTime*1000000
                 };
-            if(!reloadFlag){
+            if(!isReload){
                 addFile(fileValue)
-                updateFile(fileValue)
+                // updateFile(fileValue)
             }
-            
-            // ipcRenderer.on('receivedBytes',(event,arg,speed,hasDownloadedBytes,startTime,fileUrl,filename,filesize)=>{
-            //     fileValue.downloaded = Number(arg);
-            //     console.log("receivedBytesreceivedBytesreceivedBytesreceivedBytes")
-            //     updateFile(startTime*1000000, Object.assign({}, fileValue, {
-            //             downloaded:hasDownloadedBytes,
-            //             speed:speed,
-            //             name:filename,
-            //             fileUrl:fileUrl,
-            //             total:filesize,
-            //             status: fileValue.downloaded === fileValue.total ? STATUS.completed : STATUS.progressing
-            //           }));
-            // })
-            // this.addClassEvent('continueDownload',fileValue);   
-            // this.addClassEvent('pauseDownload',fileValue);  
-            // this.addClassEvent('cancelDownload',fileValue);  
-            // this.addClassEvent('remove',fileValue)
-            // this.addClassEvent('openDir',fileValue);
-            // this.addClassEvent('retryDownload',fileValue);  
-           
+            that.addClassEvent('continueDownload',fileValue);   
+            that.addClassEvent('pauseDownload',fileValue);  
+            that.addClassEvent('cancelDownload',fileValue);  
+            that.addClassEvent('openDir',fileValue);
+            that.addClassEvent('retryDownload',fileValue); 
+            that.addClassEvent('remove',fileValue)
         })
         
     }
@@ -98,6 +84,7 @@ class DownloadBlock {
         let id = fileValue.id;
         switch(type){
             case "openDir":
+                
                 $("#"+id).on('click','.openDir',function(e){
                     let fileName = fileValue.name
                     let value = $('.openDir').parents('.fileItem').find('.data').data('item').name;
@@ -133,6 +120,7 @@ class DownloadBlock {
             case "continueDownload":
                 if(reload === 'initAlldownloaditems'){
                     $("#"+id).one('click','.continue',function(e){
+                        console.log(1)
                         let value = $('.continue').parents('.fileItem').find('.data').data('item');
                         updateFile(id, Object.assign({}, value, {
                                 status: STATUS.progressing,
@@ -143,6 +131,7 @@ class DownloadBlock {
                     return
                 }
                 $("#"+id).on('click','.continue',function(e){
+                    console.log(2)
                     let value = $('.continue').parents('.fileItem').find('.data').data('item');
                     updateFile(id, Object.assign({}, value, {
                             status: STATUS.progressing,
@@ -182,59 +171,62 @@ class DownloadBlock {
         }
     }
     
-    reloadActiveDownloadItems () {
-        let datas = [];
-        let that = this;
-        ipcRenderer.on('reloadActiveDownloadItems', (event,reloadData) =>{
-            let reload = 'initAlldownloaditems';
-            $.each(reloadData,function(index,value){
-                let downloaditem = value.downloaditem
-                let fileValue = {
-                    'name': downloaditem.filename,
-                    'url': downloaditem.url,
-                    'status': 1,
-                    'downloaded': downloaditem.receivedBytes,
-                    'total': downloaditem.totalBytes,
-                    'speed': 0,
-                    'id':downloaditem.startTime*1000000
-                }
-                let state = value.state;
-                switch(state){
-                    case 'isCompleted' : 
-                        fileValue.status = STATUS.completed;
-                        break;
-                    case 'isCancelled' : 
-                        fileValue.status = STATUS.cancaled;
-                        break;
-                    case 'interrupted' : fileValue.status = STATUS.paused;
-                        break;
-                    case 'isProgressing' : fileValue.status = STATUS.paused;
-                        break;
-                    default:
-                        console.log('err')
-
-                }
-                datas.push(fileValue)
-            })
-            render(datas)
-            $.each(datas,function(index,fileValue){
-                that.addClassEvent('continueDownload',fileValue,reload);   
-                that.addClassEvent('pauseDownload',fileValue,reload);  
-                that.addClassEvent('cancelDownload',fileValue,reload);  
-                that.addClassEvent('openDir',fileValue,reload);
-                that.addClassEvent('retryDownload',fileValue,reload); 
-                that.addClassEvent('remove',fileValue,reload)
-            })
+    // reloadActiveDownloadItems () {
+    //     let datas = [];
+    //     let that = this;
+    //     ipcRenderer.on('reloadActiveDownloadItems', (event,reloadData,flag) =>{
+    //         console.log(flag,"flag")
             
-        })
-    }
+    //         $.each(reloadData,function(index,value){
+    //             let downloaditem = value.downloaditem
+    //             let fileValue = {
+    //                 'name': downloaditem.filename,
+    //                 'url': downloaditem.url,
+    //                 'status': 1,
+    //                 'downloaded': downloaditem.receivedBytes,
+    //                 'total': downloaditem.totalBytes,
+    //                 'speed': 0,
+    //                 'id':downloaditem.startTime*1000000
+    //             }
+    //             let state = value.state;
+    //             switch(state){
+    //                 case 'isCompleted' : 
+    //                     fileValue.status = STATUS.completed;
+    //                     break;
+    //                 case 'isCancelled' : 
+    //                     fileValue.status = STATUS.cancaled;
+    //                     break;
+    //                 case 'interrupted' : fileValue.status = STATUS.paused;
+    //                     break;
+    //                 case 'isProgressing' : fileValue.status = STATUS.paused;
+    //                     break;
+    //                 default:
+    //                     console.log('err')
+
+    //             }
+    //             datas.push(fileValue)
+    //         })
+    //         render(datas)
+    //         $.each(datas,function(index,fileValue){
+    //             that.addClassEvent('continueDownload',fileValue);   
+    //             that.addClassEvent('pauseDownload',fileValue);  
+    //             that.addClassEvent('cancelDownload',fileValue);  
+    //             that.addClassEvent('openDir',fileValue);
+    //             that.addClassEvent('retryDownload',fileValue); 
+    //             that.addClassEvent('remove',fileValue)
+    //         })
+            
+    //     })
+    // }
 
     initAlldownloaditems () {
         let datas = [];
         let that = this;
-        ipcRenderer.once('initAlldownloaditems', (event,reloadData) =>{
-            console.log(reloadData,"reloadData")
-             let reload = 'initAlldownloaditems';
+        ipcRenderer.once('initAlldownloaditems', (event,reloadData,flag) =>{
+            let reload 
+            if(flag){
+                reload = 'initAlldownloaditems';
+            }
             $.each(reloadData,function(index,value){
                 let downloaditem = value.downloaditem
                 let fileValue = {
@@ -280,15 +272,16 @@ class DownloadBlock {
     }
     receivedBytesevent(){
          ipcRenderer.on('receivedBytes',(event,arg,speed,hasDownloadedBytes,startTime,fileUrl,filename,filesize)=>{
+                console.log(hasDownloadedBytes,"hasDownloadedByteshasDownloadedBytes")
                 let id = startTime*1000000
                 let fileValue = this.getfilevalue(id)
-                console.log(id,"id")
-                console.log($('#'+id).length)
-                console.log($("#"+id).find('.data').data('item'),999999)
-                console.log("receivedBytesreceivedBytesreceivedBytesreceivedBytes")
-                fileValue.downloaded = Number(arg);
+                if(fileValue){
+                    fileValue.downloaded = Number(arg);
+                }else{
+                    return
+                }
                 updateFile(startTime*1000000, Object.assign({}, fileValue, {
-                        downloaded:hasDownloadedBytes,
+                        downloaded:arg,
                         speed:speed,
                         name:filename,
                         fileUrl:fileUrl,
