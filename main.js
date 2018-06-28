@@ -242,7 +242,7 @@ class Download {
         let itemId = downloadItemInfos.startTime*1000000;
         let itemState = downloadItemInfos.state;
         downloadItemInfos.newName = newName; //有重复命名添加新字段更新保存
-        let nowTime = Date.now()
+        let nowTime = Date.now();
         //第一次下载的item存入数据库
         let firstDownloadItem = this.itemsCollection.insert({itemid:itemId,nowTime:nowTime,savePath:savePath,state:itemState,downloaditem:downloadItemInfos})
         console.log(firstDownloadItem,"firstDownloadItem")
@@ -357,8 +357,13 @@ class Download {
         hasDownloadedBytes += receivedBytes;
         firstDownloadItem.downloaditem.offset = downloadingItemInfos.Etag != ""? hasDownloadedBytes : 0;
         firstDownloadItem.state = 'isProgressing'
+        console.log(receivedBytes,"receivedBytes")
+        console.log(lastReceivedBytes,"lastReceivedBytes")
+        console.log(receivedBytes-lastReceivedBytes,"receivedBytes-lastReceivedBytes")
+        console.log(((nowTime-lastTime)/1000),"time11111")
         let speed =  (receivedBytes-lastReceivedBytes)/((nowTime-lastTime)/1000);
         firstDownloadItem.downloaditem = downloadingItemInfos;
+        firstDownloadItem.nowTime = nowTime;
         this.itemsCollection.update(firstDownloadItem)
         this.db.save()
         if(this.mainWindow){
@@ -383,6 +388,7 @@ class Download {
         let speed =  (receivedBytes-lastReceivedBytes)/((nowTime-lastTime)/1000);
         var update = function (obj){
             obj.state = 'isProgressing';
+            obj.nowTime = nowTime;
             obj.downloaditem = downloadingItemInfos 
             return obj
           }

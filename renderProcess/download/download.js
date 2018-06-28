@@ -68,13 +68,14 @@ class DownloadBlock {
             if(!isReload){
                 addFile(fileValue)
                 // updateFile(fileValue)
+                that.addClassEvent('retryDownload',fileValue); 
+                that.addClassEvent('openDir',fileValue);
+                that.addClassEvent('remove',fileValue)
+                that.addClassEvent('pauseDownload',fileValue);  
             }
             that.addClassEvent('continueDownload',fileValue);   
-            that.addClassEvent('pauseDownload',fileValue);  
             that.addClassEvent('cancelDownload',fileValue);  
-            that.addClassEvent('openDir',fileValue);
-            that.addClassEvent('retryDownload',fileValue); 
-            that.addClassEvent('remove',fileValue)
+            
         })
         
     }
@@ -272,7 +273,6 @@ class DownloadBlock {
     }
     receivedBytesevent(){
          ipcRenderer.on('receivedBytes',(event,arg,speed,hasDownloadedBytes,startTime,fileUrl,filename,filesize)=>{
-                console.log(hasDownloadedBytes,"hasDownloadedByteshasDownloadedBytes")
                 let id = startTime*1000000
                 let fileValue = this.getfilevalue(id)
                 if(fileValue){
