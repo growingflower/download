@@ -50,14 +50,14 @@ class Download {
             this.registerDownloadListener(this.mainWindow);
         }
         this.mainWindow.once('ready-to-show', () => {
-            console.log(!isActive,"!isActive")
-            if(!isActive){
-                let allDownloadItemsInfos = this.itemsCollection.find({})
-                this.mainWindow.webContents.send('initAlldownloaditems',allDownloadItemsInfos)
-                this.mainWindow.show()
-            }else{
-                this.mainWindow.show()
-            }
+            // console.log(!isActive,"!isActive")
+            // if(!isActive){
+            //     let allDownloadItemsInfos = this.itemsCollection.find({})
+            //     this.mainWindow.webContents.send('initAlldownloaditems',allDownloadItemsInfos)
+            //     this.mainWindow.show()
+            // }else{
+            //     this.mainWindow.show()
+            // }
            
         })
     }
@@ -102,7 +102,7 @@ class Download {
             }else{
                 this.mainWindow.webContents.send('initAlldownloaditems',allDownloadItemsInfos)
             }
-          })
+        })
         //删除下载页面的数据
         ipcMain.on('removedowanload',(event,id)=>{
           this.itemsCollection.chain().find({itemid:id}).remove();
@@ -202,7 +202,7 @@ class Download {
             fs.accessSync(savePathforCheck, fs.constants.F_OK)
             savePathforCheck = `${app.getPath('downloads')}/(${++count})${item.getFilename()}`
             // console.log("savePathforCheck:",savePathforCheck)
-            return checkFileName(item,++count)
+            return this.checkFileName(item,savePathforCheck,count)
         }catch(err){
             // console.log(savePathforCheck,"savePathforCheck")
             return savePathforCheck
@@ -242,8 +242,10 @@ class Download {
         let itemId = downloadItemInfos.startTime*1000000;
         let itemState = downloadItemInfos.state;
         downloadItemInfos.newName = newName; //有重复命名添加新字段更新保存
+        let nowTime = Date.now()
         //第一次下载的item存入数据库
-        let firstDownloadItem = this.itemsCollection.insert({itemid:itemId,savePath:savePath,state:itemState,downloaditem:downloadItemInfos})
+        let firstDownloadItem = this.itemsCollection.insert({itemid:itemId,nowTime:nowTime,savePath:savePath,state:itemState,downloaditem:downloadItemInfos})
+        console.log(firstDownloadItem,"firstDownloadItem")
         item.setSavePath(savePath)
         this.db.save()
         let argsForWin = downloadItemInfos;
@@ -342,21 +344,25 @@ class Download {
     }
 
     firstDownloadItemProccessing(firstDownloadItem,downloadingItemInfos){
-        firstDownloadItem.downloaditem = downloadingItemInfos;
         let startTime = downloadingItemInfos.startTime;
         let receivedBytes = downloadingItemInfos.receivedBytes;
         let fileUrl = downloadingItemInfos.url;
         let filename = downloadingItemInfos.filename;
         let filesize = downloadingItemInfos.totalBytes;
-        let hasDownloadedBytes = 0;
+        let lastReceivedBytes = firstDownloadItem.downloaditem.receivedBytes;
+        let newName = downloadingItemInfos.newName
+        let lastTime = firstDownloadItem.nowTime;
+        let nowTime = Date.now();
+        let hasDownloadedBytes;
         hasDownloadedBytes += receivedBytes;
         firstDownloadItem.downloaditem.offset = downloadingItemInfos.Etag != ""? hasDownloadedBytes : 0;
         firstDownloadItem.state = 'isProgressing'
-        let speed = receivedBytes/(Number(new Date().getTime()/1000) - Number(startTime))
+        let speed =  (receivedBytes-lastReceivedBytes)/((nowTime-lastTime)/1000);
+        firstDownloadItem.downloaditem = downloadingItemInfos;
         this.itemsCollection.update(firstDownloadItem)
         this.db.save()
         if(this.mainWindow){
-            this.mainWindow.webContents.send('receivedBytes',receivedBytes,speed,hasDownloadedBytes,startTime,fileUrl,filename,filesize)
+            this.mainWindow.webContents.send('receivedBytes',receivedBytes,speed,hasDownloadedBytes,startTime,fileUrl,filename,filesize,newName)
         }
     }
 
@@ -367,11 +373,14 @@ class Download {
         let fileUrl = downloadingItemInfos.url; 
         let receivedBytes = downloadingItemInfos.receivedBytes;
         let hasDownloadedBytes = offset;
-        // let nowDowaload = 0;
-        // nowDowaload += receivedBytes;
-        // hasDownloadedBytes += receivedBytes;
+        let nowDowaload = 0;
+        nowDowaload += receivedBytes;
+        hasDownloadedBytes += receivedBytes;
+        let lastTime = this.itemsCollection.find({itemid:itemId})[0].nowTime;
+        let lastReceivedBytes = this.itemsCollection.find({itemid:itemId})[0].downloaditem.receivedBytes
+        let nowTime = Date.now();
         downloadingItemInfos.offset = downloadingItemInfos.Etag != ""? hasDownloadedBytes : 0;
-        let speed = receivedBytes/(Number(new Date().getTime()/1000) - Number(startInterrupteTime))
+        let speed =  (receivedBytes-lastReceivedBytes)/((nowTime-lastTime)/1000);
         var update = function (obj){
             obj.state = 'isProgressing';
             obj.downloaditem = downloadingItemInfos 
